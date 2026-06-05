@@ -189,7 +189,6 @@ code YAML du store_manager:
         driver: bridge
         external: true
 
-
 Sortie de la requête:
 ![alt text](image-7.png)
 
