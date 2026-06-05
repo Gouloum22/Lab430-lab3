@@ -29,7 +29,7 @@ class EndpointTester:
                 response = requests.post(
                     self.url, 
                     timeout=self.timeout,
-                    data=self.payload,
+                    json=self.payload,
                     headers={
                         'Content-Type': 'application/json'
                     }

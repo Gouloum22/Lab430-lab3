@@ -3,6 +3,7 @@ Product stocks (write-only model)
 SPDX - License - Identifier: LGPL - 3.0 - or -later
 Auteurs : Gabriel C. Ullmann, Fabio Petrillo, 2025
 """
+
 from sqlalchemy import text
 from stocks.models.stock import Stock
 from db import get_redis_conn, get_sqlalchemy_session
@@ -43,6 +44,7 @@ def update_stock_mysql(session, order_items, operation):
             if hasattr(order_items[0], 'product_id'):
                 pid = item.product_id
                 qty = item.quantity
+
             else:
                 pid = item['product_id']
                 qty = item['quantity']
@@ -69,30 +71,66 @@ def update_stock_redis(order_items, operation):
     """ Update stock quantities in Redis """
     if not order_items:
         return
+
     r = get_redis_conn()
     stock_keys = list(r.scan_iter("stock:*"))
+
     if stock_keys:
         pipeline = r.pipeline()
-        for item in order_items:
-            if hasattr(item, 'product_id'):
-                product_id = item.product_id
-                quantity = item.quantity
-            else:
-                product_id = item['product_id']
-                quantity = item['quantity']
-            # TODO: ajoutez plus d'information sur l'article
-            current_stock = r.hget(f"stock:{product_id}", "quantity")
-            current_stock = int(current_stock) if current_stock else 0
-            
-            if operation == '+':
-                new_quantity = current_stock + quantity
-            else:  
-                new_quantity = current_stock - quantity
-            
-            pipeline.hset(f"stock:{product_id}", "quantity", new_quantity)
-        
-        pipeline.execute()
-    
+        session = get_sqlalchemy_session()
+
+        try:
+            for item in order_items:
+                if hasattr(item, 'product_id'):
+                    product_id = item.product_id
+                    quantity = item.quantity
+                else:
+                    product_id = item['product_id']
+                    quantity = item['quantity']
+
+                current_stock = r.hget(f"stock:{product_id}", "quantity")
+                current_stock = int(current_stock) if current_stock else 0
+
+                if operation == '+':
+                    new_quantity = current_stock + quantity
+                else:
+                    new_quantity = current_stock - quantity
+
+                product_info = session.execute(
+                    text("""
+                        SELECT 
+                            name,
+                            sku,
+                            price
+                        FROM products
+                        WHERE id = :pid
+                    """),
+                    {"pid": product_id}
+                ).mappings().fetchone()
+
+                if product_info:
+                    pipeline.hset(
+                        f"stock:{product_id}",
+                        mapping={
+                            "quantity": int(new_quantity),
+                            "name": product_info["name"],
+                            "sku": product_info["sku"],
+                            "price": float(product_info["price"])
+                        }
+                    )
+                else:
+                    pipeline.hset(
+                        f"stock:{product_id}",
+                        mapping={
+                            "quantity": int(new_quantity)
+                        }
+                    )
+
+            pipeline.execute()
+
+        finally:
+            session.close()
+
     else:
         _populate_redis_from_mysql(r)
 

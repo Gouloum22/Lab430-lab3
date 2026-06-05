@@ -1,0 +1,20 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Deploy application on VM
+        run: |
+          cd /root/Lab430-lab3
+          git pull origin main
+          docker network create labo03-network || true
+          docker-compose down
+          docker-compose up -d --build
+          docker-compose ps
