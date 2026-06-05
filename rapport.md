@@ -198,3 +198,6 @@ Intégration continue avec les tests:
 ![alt text](image.png)
 
 Déploiement continue sur la VM:
+![alt text](image-8.png)
+
+![alt text](image-9.png)
